@@ -1,37 +1,1075 @@
----
-id: guiding-principles
-title: Guiding Principles
-sidebar_label: Guiding Principles
----
+import React, { useState, useEffect } from 'react';
+import { 
+  Package, ClipboardCheck, AlertTriangle, Truck, Users, User, Crown, 
+  Search, Menu, MapPin, Shield, Lock, Mic, Lightbulb, 
+  PieChart, ArrowLeft, Calendar, Save, PenTool, Palette, Trophy, 
+  Car, Box, Wallet, Receipt, Smartphone, Camera, X, CheckCircle, 
+  PlayCircle, Printer, MessageSquare, LogOut, LayoutGrid,
+  Sparkles, Calculator, Settings, FileText, Activity,
+  Phone, Mail, Edit, Ban, UserPlus, Trash2, Wrench, 
+  Banknote, ShoppingBag, FileCheck, Briefcase
+} from 'lucide-react';
 
-> [The more your tests resemble the way your software is used, the more
-> confidence they can give you.][guiding-principle]
+// --- Gemini API Setup ---
+const apiKey = ""; // API Key injected by environment
 
-We try to only expose methods and utilities that encourage you to write tests
-that closely resemble how your web pages are used.
+async function callGemini(prompt) {
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }]
+        })
+      }
+    );
+    const data = await response.json();
+    return data.candidates?.[0]?.content?.parts?.[0]?.text || "AI Error";
+  } catch (error) {
+    console.error("Gemini API Error:", error);
+    return "Failed to connect to AI.";
+  }
+}
 
-Utilities are included in this project based on the following guiding
-principles:
+// --- Global Constants ---
+const MACHINES = ["Tajima 01", "Tajima 02", "Tajima 03", "Tajima 04", "Tajima 05", "Tajima 06", "Tajima 07", "Tajima 08", "Tajima 09", "Tajima 10"];
+const OPERATORS = ["Ahmed", "Kumar", "Singh", "Moin", "Rashid", "Bilal"];
+const SHIFTS = ["Morning (8am - 8pm)", "Night (8pm - 8am)"];
+const DESIGN_DB = { "RS-523": { stitches: 150000, rate: 45 }, "RS-123": { stitches: 50000, rate: 15 }, "RS-900": { stitches: 250000, rate: 80 } };
 
-1.  If it relates to rendering components, then it should deal with DOM nodes
-    rather than component instances, and it should not encourage dealing with
-    component instances.
-2.  It should be generally useful for testing the application components in the
-    way the user would use it. We _are_ making some trade-offs here because
-    we're using a computer and often a simulated browser environment, but in
-    general, utilities should encourage tests that use the components the way
-    they're intended to be used.
-3.  Utility implementations and APIs should be simple and flexible.
+// --- Initial Data ---
+const INITIAL_USERS = [
+  { id: 1, name: "Chairman", role: "CHAIRMAN", pin: "1990", access: "FULL" }, 
+  { id: 2, name: "Accountant", role: "ADMIN", pin: "1111", access: "LIMITED" },
+  { id: 3, name: "Mr. Moin", role: "SUPERVISOR", pin: "2222", access: "MATCHING" },
+  { id: 4, name: "Driver Kumar", role: "DRIVER", pin: "3333", access: "LOGISTICS" }
+];
 
-At the end of the day, what we want is for this library to be pretty
-light-weight, simple, and understandable.
+const INITIAL_CUSTOMERS = [
+  { id: "CUST-101", businessName: "Al Saleh Tailoring LLC", contactPerson: "Mr. Saleh", whatsapp: "050-1234567", city: "Sharjah", area: "Rolla", lat: 25.355, lng: 55.390, balance: 4500, lastPayment: "2025-11-01" },
+  { id: "CUST-102", businessName: "Al Zeenah Embroidery", contactPerson: "Ms. Zeenah", whatsapp: "055-9876543", city: "Sharjah", area: "Ind Area 13", lat: 25.297, lng: 55.460, balance: 1200, lastPayment: "2025-11-15" },
+  { id: "CUST-104", businessName: "Al Ain Royal Textiles", contactPerson: "Mr. Ahmed", whatsapp: "050-1122334", city: "Al Ain", area: "Al Mauji", lat: 24.219, lng: 55.740, balance: 0, lastPayment: "2025-11-20" },
+  { id: "CUST-105", businessName: "Golden Thread Fashions", contactPerson: "Mr. Raj", whatsapp: "050-9988776", city: "Dubai", area: "Naif", lat: 25.272, lng: 55.306 },
+];
 
-<!--
-Links:
--->
+const INITIAL_INVENTORY = [
+  { id: 1, item: "Gold Metallic Thread", stock: 45, unit: "Cones", alertLevel: 50 },
+  { id: 2, item: "Silver Metallic Thread", stock: 80, unit: "Cones", alertLevel: 30 },
+  { id: 3, item: "Backing Paper (Hard)", stock: 12, unit: "Rolls", alertLevel: 5 },
+  { id: 4, item: "Tajima Needles (#11)", stock: 200, unit: "Pcs", alertLevel: 100 },
+];
 
-<!-- prettier-ignore-start -->
+const INITIAL_STAFF = [
+  { id: "EMP-001", name: "Ahmed Khan", role: "Operator", status: "Active", phone: "050-1112222" },
+  { id: "EMP-002", name: "Kumar Singh", role: "Driver", status: "Active", phone: "055-3334444" },
+  { id: "EMP-003", name: "Rashid Ali", role: "Helper", status: "On Leave", phone: "052-5556666" },
+  { id: "EMP-004", name: "Moin Uddin", role: "Supervisor", status: "Active", phone: "050-7778888" },
+];
 
-[guiding-principle]: https://twitter.com/kentcdodds/status/977018512689455106
+// --- Helper Functions ---
+const isDataLocked = (timestamp, override) => {
+  if (override) return false; 
+  if (!timestamp) return false; 
+  const diffHours = Math.abs(new Date() - new Date(timestamp)) / 36e5; 
+  return diffHours > 48;
+};
 
-<!-- prettier-ignore-end -->
+// --- UI Components ---
+const Button = ({ children, onClick, variant = "primary", className = "", disabled=false }) => {
+  const styles = {
+    primary: "bg-amber-400 text-black font-black shadow-lg shadow-amber-500/20 active:scale-95 hover:bg-amber-300 transition-all",
+    secondary: "bg-teal-900/30 text-teal-400 border-2 border-teal-800/50 active:scale-95 hover:bg-teal-900/50 transition-all",
+    success: "bg-emerald-500 text-black font-bold shadow-md active:scale-95 hover:bg-emerald-400 transition-all",
+    danger: "bg-orange-600 text-white shadow-md active:scale-95 hover:bg-orange-500 transition-all",
+    outline: "border-2 border-slate-600 text-slate-400 active:bg-slate-800 hover:text-white hover:border-slate-400 transition-all",
+    dark: "bg-slate-950 text-white border border-slate-800 shadow-lg active:scale-95 hover:bg-slate-900 transition-all",
+    magic: "bg-gradient-to-r from-teal-600 to-emerald-600 text-white shadow-lg active:scale-95 transition-all"
+  };
+  return (
+    <button onClick={onClick} disabled={disabled} className={`px-4 py-3 rounded-xl font-bold flex items-center justify-center gap-2 ${styles[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
+      {children}
+    </button>
+  );
+};
+
+const StatusBadge = ({ status }) => {
+  const colors = {
+    "RECEIVED": "bg-slate-800 text-slate-400 border border-slate-700", 
+    "CHECKED": "bg-teal-500/10 text-teal-400 border border-teal-500/30", 
+    "RUNNING": "bg-amber-500/10 text-amber-400 border border-amber-500/30 animate-pulse", 
+    "READY": "bg-emerald-500/10 text-emerald-400 border border-emerald-500/30", 
+    "DELIVERED": "bg-orange-500/10 text-orange-400 border border-orange-500/30",
+    "INVOICED": "bg-blue-500/10 text-blue-400 border border-blue-500/30"
+  };
+  return <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${colors[status]}`}>{status}</span>;
+};
+
+const CounterBadge = ({ label, count, color = "teal" }) => {
+  const colors = {
+    teal: "bg-teal-950/50 text-teal-400 border-teal-900",
+    amber: "bg-amber-950/50 text-amber-400 border-amber-900",
+    emerald: "bg-emerald-950/50 text-emerald-400 border-emerald-900",
+    orange: "bg-orange-950/50 text-orange-400 border-orange-900"
+  };
+  return (
+    <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${colors[color]}`}>
+      <span className="text-xs font-bold uppercase opacity-70">{label}</span>
+      <span className="text-xl font-black">{count}</span>
+    </div>
+  );
+};
+
+const SidebarBtn = ({ id, icon: Icon, label, active, set }) => (
+  <button onClick={() => set(id)} className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all font-bold text-sm group ${active === id ? 'bg-amber-400 text-black shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}`}>
+    <Icon size={20} className={active === id ? "text-black" : "text-slate-500 group-hover:text-teal-400"}/>
+    {label}
+  </button>
+);
+
+// --- SUB-VIEWS ---
+
+const InventoryView = ({ inventory }) => (
+  <div className="space-y-6 max-w-4xl mx-auto pb-24">
+     <div className="flex items-center justify-between mb-4">
+        <h2 className="text-3xl font-black text-white flex items-center gap-3"><ShoppingBag className="text-teal-500" size={32} /> Factory Store</h2>
+        <Button variant="secondary">+ Add Item</Button>
+     </div>
+     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {inventory.map(item => {
+           const isLow = item.stock < item.alertLevel;
+           return (
+             <div key={item.id} className={`p-5 rounded-2xl border bg-slate-900 flex justify-between items-center ${isLow ? 'border-orange-500/50 bg-orange-900/10' : 'border-slate-800'}`}>
+                <div>
+                   <h3 className="text-white font-bold text-lg">{item.item}</h3>
+                   <p className="text-slate-500 text-sm">Min Level: {item.alertLevel} {item.unit}</p>
+                </div>
+                <div className="text-right">
+                   <span className={`text-3xl font-black ${isLow ? 'text-orange-500' : 'text-teal-400'}`}>{item.stock}</span>
+                   <span className="text-xs text-slate-400 block font-bold uppercase">{item.unit}</span>
+                </div>
+             </div>
+           );
+        })}
+     </div>
+  </div>
+);
+
+const PayrollView = ({ productionLogs }) => {
+  const payrollData = {};
+  productionLogs.forEach(log => {
+     if (!payrollData[log.operator]) payrollData[log.operator] = 0;
+     payrollData[log.operator] += log.manualStitches;
+  });
+
+  return (
+    <div className="space-y-6 max-w-4xl mx-auto pb-24">
+       <h2 className="text-3xl font-black text-white flex items-center gap-3"><Banknote className="text-emerald-500" size={32} /> Payroll & Incentives</h2>
+       <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden">
+          <table className="w-full text-left">
+             <thead className="bg-slate-950 text-slate-500 text-xs uppercase">
+                <tr><th className="p-5">Operator</th><th className="p-5 text-right">Total Stitches</th><th className="p-5 text-right">Incentive (AED)</th></tr>
+             </thead>
+             <tbody className="divide-y divide-slate-800">
+                {Object.keys(payrollData).length > 0 ? Object.keys(payrollData).map(op => {
+                   const stitches = payrollData[op];
+                   const incentive = (stitches / 1000) * 0.05; 
+                   return (
+                      <tr key={op} className="hover:bg-slate-800/50">
+                         <td className="p-5 font-bold text-white">{op}</td>
+                         <td className="p-5 text-right font-mono text-slate-300">{(stitches / 1000).toFixed(0)}k</td>
+                         <td className="p-5 text-right font-black text-emerald-400">AED {incentive.toFixed(2)}</td>
+                      </tr>
+                   );
+                }) : <tr><td colSpan="3" className="p-10 text-center text-slate-600">No production logs yet.</td></tr>}
+             </tbody>
+          </table>
+       </div>
+    </div>
+  );
+};
+
+const InvoiceView = ({ jobs, setJobs }) => {
+  const deliveredJobs = jobs.filter(j => j.status === 'DELIVERED');
+  const generateInvoice = (jobId) => {
+     setJobs(jobs.map(j => j.id === jobId ? { ...j, status: 'INVOICED' } : j));
+     alert("Invoice Generated & Sent to WhatsApp!");
+  };
+  return (
+    <div className="space-y-6 max-w-4xl mx-auto pb-24">
+       <h2 className="text-3xl font-black text-white flex items-center gap-3"><FileCheck className="text-blue-500" size={32} /> Invoicing</h2>
+       <div className="space-y-3">
+          {deliveredJobs.length === 0 && <p className="text-center text-slate-600 py-20">No items pending invoice.</p>}
+          {deliveredJobs.map(job => (
+             <div key={job.id} className="bg-slate-900 p-5 rounded-2xl border border-slate-800 flex justify-between items-center">
+                <div><h3 className="text-white font-bold">{job.design}</h3><p className="text-slate-500 text-sm">{job.customer} • {job.billNo}</p></div>
+                <Button onClick={() => generateInvoice(job.id)} variant="magic" className="text-xs px-6">Generate Tax Invoice</Button>
+             </div>
+          ))}
+       </div>
+    </div>
+  );
+};
+
+const HRView = ({ staff, setStaff }) => {
+    const [activeTab, setActiveTab] = useState('directory');
+    const [newStaff, setNewStaff] = useState({ name: "", role: "Operator", phone: "" });
+    const handleAddStaff = () => {
+        if(!newStaff.name) return alert("Enter Name");
+        setStaff([...staff, { ...newStaff, id: `EMP-${Date.now()}`, status: "Active" }]);
+        setNewStaff({ name: "", role: "Operator", phone: "" });
+        alert("Staff Added");
+    };
+    const toggleAttendance = (id) => {
+        setStaff(staff.map(s => s.id === id ? { ...s, status: s.status === 'Active' ? 'Absent' : 'Active' } : s));
+    };
+    return (
+        <div className="space-y-6 max-w-4xl mx-auto pb-24">
+            <div className="flex items-center justify-between">
+              <h2 className="text-3xl font-black text-white flex items-center gap-3"><Briefcase className="text-teal-500" size={32} /> Human Resources</h2>
+              <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800">
+                  <button onClick={() => setActiveTab('directory')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${activeTab === 'directory' ? 'bg-amber-400 text-black' : 'text-slate-500'}`}>Directory</button>
+                  <button onClick={() => setActiveTab('add')} className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors ${activeTab === 'add' ? 'bg-amber-400 text-black' : 'text-slate-500'}`}>+ Add New</button>
+              </div>
+            </div>
+            {activeTab === 'directory' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {staff.map(s => (
+                        <div key={s.id} className="bg-slate-900 p-5 rounded-2xl border border-slate-800">
+                            <div className="flex justify-between items-start mb-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-slate-300 font-bold border border-slate-700">{s.name.charAt(0)}</div>
+                                    <div><h4 className="text-white font-bold">{s.name}</h4><p className="text-slate-500 text-xs">{s.role}</p></div>
+                                </div>
+                                <span className={`text-[10px] px-2 py-1 rounded font-bold ${s.status === 'Active' ? 'bg-emerald-900/30 text-emerald-500' : s.status === 'Absent' ? 'bg-red-900/30 text-red-500' : 'bg-orange-900/30 text-orange-500'}`}>{s.status}</span>
+                            </div>
+                            <div className="flex items-center justify-between mt-4 pt-4 border-t border-slate-800">
+                                <span className="text-slate-500 text-xs">{s.phone}</span>
+                                <button onClick={() => toggleAttendance(s.id)} className={`text-xs font-bold px-3 py-1 rounded border ${s.status === 'Active' ? 'border-red-500 text-red-500 hover:bg-red-500/10' : 'border-emerald-500 text-emerald-500 hover:bg-emerald-500/10'}`}>{s.status === 'Active' ? 'Mark Absent' : 'Mark Present'}</button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+            {activeTab === 'add' && (
+                <div className="bg-slate-900 p-8 rounded-3xl border border-slate-800 max-w-md mx-auto">
+                    <h3 className="text-white font-bold mb-4">Add New Employee</h3>
+                    <div className="space-y-4">
+                        <input className="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-xl" placeholder="Full Name" value={newStaff.name} onChange={e => setNewStaff({...newStaff, name: e.target.value})}/>
+                        <select className="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-xl" value={newStaff.role} onChange={e => setNewStaff({...newStaff, role: e.target.value})}>
+                            <option>Operator</option><option>Driver</option><option>Helper</option><option>Supervisor</option>
+                        </select>
+                        <input className="w-full p-3 bg-slate-950 border border-slate-700 text-white rounded-xl" placeholder="Phone Number" value={newStaff.phone} onChange={e => setNewStaff({...newStaff, phone: e.target.value})}/>
+                        <Button onClick={handleAddStaff} className="w-full py-3">Save Employee</Button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const StoreView = ({ customers, jobs, setJobs }) => {
+  const [custType, setCustType] = useState('b2b');
+  const [form, setForm] = useState({ name: customers[0]?.businessName || "", bill: "", design: "", description: "", qty: 1 });
+  const [aiSuggestion, setAiSuggestion] = useState("");
+  const [loadingAi, setLoadingAi] = useState(false);
+
+  const handleAiSuggest = async () => {
+    if (!form.description) return alert("Please enter a description first.");
+    setLoadingAi(true);
+    const prompt = `I am an embroidery factory manager. A customer brought fabric with this description: "${form.description}". Suggest 3-4 specific embroidery thread colors that would look elegant. Format as a simple list.`;
+    const result = await callGemini(prompt);
+    setAiSuggestion(result);
+    setLoadingAi(false);
+  };
+  
+  const handleReceive = () => {
+    if (!form.design || form.qty < 1) return alert("Invalid details");
+    const newJobs = [];
+    const baseId = `RS-${Math.floor(Math.random() * 9000) + 1000}`;
+    const now = new Date().toISOString();
+    for(let i=0; i < form.qty; i++) {
+      newJobs.push({
+        id: `${baseId}-0${i+1}`,
+        customer: custType === 'b2b' ? form.name : `${form.name} (Walk-in)`,
+        billNo: custType === 'b2b' ? form.bill : 'CASH',
+        design: form.design,
+        qtyIndex: `Piece ${i+1} of ${form.qty}`,
+        status: "RECEIVED",
+        timestamp: now 
+      });
+    }
+    setJobs([...newJobs, ...jobs]);
+    alert(`Printed ${form.qty} Barcodes!`);
+    setForm({ ...form, bill: "", design: "", description: "", qty: 1 });
+  };
+
+  return (
+    <div className="space-y-6 max-w-6xl mx-auto pb-24">
+       <h2 className="text-3xl font-black text-white flex items-center gap-3"><Package className="text-amber-400" size={32} /> Store Reception</h2>
+       <div className="bg-slate-900 p-8 rounded-3xl border border-slate-800">
+           <div className="grid grid-cols-2 gap-6 mb-6">
+              <div className="relative">
+                <label className="text-xs font-bold text-slate-500 mb-1 block uppercase">Customer Name</label>
+                {custType === 'b2b' ? (
+                    <select 
+                        className="w-full p-4 bg-slate-950 border border-slate-700 text-white rounded-xl font-bold" 
+                        value={form.name} 
+                        onChange={e => setForm({...form, name: e.target.value})}
+                    >
+                        {customers.map(c => <option key={c.id} value={c.businessName}>{c.businessName}</option>)}
+                    </select>
+                ) : (
+                    <input className="w-full p-4 bg-slate-950 border border-slate-700 rounded-xl text-white font-bold" placeholder="Walk-in Name" value={form.name} onChange={e => setForm({...form, name: e.target.value})} />
+                )}
+              </div>
+              <div>
+                  <label className="text-xs font-bold text-slate-500 mb-1 block uppercase">Design No</label>
+                  <input className="w-full p-4 bg-slate-950 border border-slate-700 rounded-xl text-white font-bold" placeholder="Design No" value={form.design} onChange={e => setForm({...form, design: e.target.value})} />
+              </div>
+           </div>
+           <div className="grid grid-cols-2 gap-6 mb-6">
+              <div>
+                  <label className="text-xs font-bold text-slate-500 mb-1 block uppercase">Bill Number</label>
+                  <input className="w-full p-4 bg-slate-950 border border-slate-700 rounded-xl text-white font-bold" placeholder="Bill Number" value={form.bill} onChange={e => setForm({...form, bill: e.target.value})} />
+              </div>
+              <div>
+                  <label className="text-xs font-bold text-slate-500 mb-1 block uppercase">Quantity</label>
+                  <input 
+                    className="w-full p-4 bg-slate-950 border border-slate-700 rounded-xl text-white font-bold" 
+                    type="number" 
+                    placeholder="Qty" 
+                    value={form.qty} 
+                    onChange={e => setForm({...form, qty: e.target.value ? parseInt(e.target.value) : ''})} 
+                  />
+              </div>
+           </div>
+           
+           <div className="mb-6">
+             <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Fabric Description</label>
+             <div className="flex gap-2">
+               <input className="flex-1 p-4 bg-slate-950 border border-slate-700 rounded-xl text-white outline-none" placeholder="e.g. Red Velvet Wedding Dress" value={form.description} onChange={e => setForm({...form, description: e.target.value})} />
+               <Button variant="magic" onClick={handleAiSuggest} disabled={loadingAi}><Sparkles size={18}/> {loadingAi ? "Thinking..." : "Suggest Threads"}</Button>
+             </div>
+             {aiSuggestion && <div className="mt-3 p-3 bg-teal-900/20 border border-teal-500/30 rounded-xl text-teal-300 text-sm">{aiSuggestion}</div>}
+           </div>
+
+           <Button onClick={handleReceive} className="w-full py-4 text-lg">Generate Barcodes</Button>
+       </div>
+    </div>
+  );
+};
+
+const SupervisorView = ({ jobs, setJobs, adminOverride }) => {
+  const viewJobs = jobs.filter(j => j.status === 'RECEIVED');
+  const [loadingAi, setLoadingAi] = useState(false);
+  
+  const handleAction = (job, action) => {
+    if (isDataLocked(job.timestamp, adminOverride)) {
+      alert("🔒 DATA LOCKED: Entry > 48h. Contact Admin.");
+      return;
+    }
+    const newStatus = action === 'approve' ? 'CHECKED' : 'RETURNED'; 
+    setJobs(jobs.map(j => j.id === job.id ? { ...j, status: newStatus } : j));
+  };
+
+  const generateFormalNote = async () => {
+    setLoadingAi(true);
+    const prompt = `Write a short, polite rejection note for damaged embroidery fabric. Customer: General. Reason: Stains found.`;
+    const result = await callGemini(prompt);
+    alert(`AI Note Generated:\n\n${result}`);
+    setLoadingAi(false);
+  };
+
+  return (
+    <div className="space-y-6 pb-24">
+      <div className="flex justify-between items-center">
+           <h2 className="text-2xl font-bold text-slate-100 flex items-center gap-3"><Palette className="text-amber-400" size={32} /> Matching Floor</h2>
+           {adminOverride && <div className="bg-orange-600 text-white px-4 py-2 rounded-lg font-bold text-xs animate-pulse">⚠️ EDITING UNLOCKED</div>}
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {viewJobs.map(job => {
+           const locked = isDataLocked(job.timestamp, adminOverride);
+           return (
+              <div key={job.id} className={`bg-slate-900 p-5 rounded-2xl border relative ${locked ? 'border-orange-900/30 opacity-75' : 'border-slate-800'}`}>
+              {locked && <div className="absolute top-3 right-3 text-orange-500 flex items-center gap-1"><Lock size={14} /><span className="text-[10px] font-bold">LOCKED</span></div>}
+              <h3 className="font-bold text-xl text-white mb-2">{job.design}</h3>
+              <p className="text-sm text-slate-400 mb-4">{job.customer} • {job.qtyIndex}</p>
+              <div className="grid grid-cols-2 gap-3">
+                  <Button variant="outline" onClick={() => handleAction(job, 'reject')} className="py-2 text-sm">Reject</Button>
+                  <Button variant="primary" onClick={() => handleAction(job, 'approve')} className="py-2 text-sm">Matched</Button>
+              </div>
+              </div>
+           );
+        })}
+      </div>
+       <div className="mt-8 p-4 bg-slate-900 rounded-xl border border-slate-800">
+         <h3 className="text-sm font-bold text-teal-400 mb-2 flex items-center gap-2"><Sparkles size={14}/> AI Assistant</h3>
+         <Button onClick={generateFormalNote} variant="secondary" disabled={loadingAi} className="w-full text-xs">
+           {loadingAi ? "Writing..." : "Generate Rejection Note Template"}
+         </Button>
+       </div>
+    </div>
+  );
+};
+
+const ProductionView = ({ jobs, setJobs, productionLogs, setProductionLogs }) => {
+  const viewJobs = jobs.filter(j => ['CHECKED', 'RUNNING'].includes(j.status));
+  const [logModal, setLogModal] = useState(false);
+  const [maintModal, setMaintModal] = useState(false); 
+  const [logForm, setLogForm] = useState({ machine: MACHINES[0], shift: SHIFTS[0], operator: OPERATORS[0], design: "RS-523", manualStitches: "", pcs: "" });
+  const [maintenanceLogs, setMaintenanceLogs] = useState([]);
+
+  const updateJobField = (id, field, value) => {
+    setJobs(jobs.map(j => j.id === id ? { ...j, [field]: value } : j));
+  };
+
+  const toggleRun = (id, currentStatus, machine, operator, shift) => {
+    if (currentStatus === 'CHECKED') {
+      if (!machine || !operator || !shift) return alert("Please select Machine, Operator, and Shift.");
+      setJobs(jobs.map(j => j.id === id ? { ...j, status: 'RUNNING' } : j));
+    } else {
+      setJobs(jobs.map(j => j.id === id ? { ...j, status: 'READY' } : j));
+    }
+  };
+
+  const handleSaveLog = () => {
+      if(!logForm.manualStitches || !logForm.pcs) return alert("Enter Stitch Count AND Piece Count!");
+      const newLog = {
+          id: Date.now(),
+          date: new Date().toLocaleDateString(),
+          ...logForm,
+          manualStitches: parseInt(logForm.manualStitches),
+          pcs: parseInt(logForm.pcs)
+      };
+      setProductionLogs([...productionLogs, newLog]);
+      setLogModal(false);
+      alert("Shift Recorded Successfully!");
+  };
+
+  const handleMaintenanceLog = (machine, reason) => {
+      setMaintenanceLogs([...maintenanceLogs, { machine, reason, date: new Date().toLocaleString() }]);
+      setMaintModal(false);
+      alert(`Maintenance Logged for ${machine}`);
+  };
+
+  return (
+    <div className="space-y-4 pb-24">
+       <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2"><AlertTriangle className="text-orange-500"/> Production</h2>
+          <div className="flex gap-2">
+             <button onClick={() => setMaintModal(true)} className="bg-slate-800 text-slate-300 px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-1 hover:bg-slate-700">
+                 <Wrench size={14}/> Maintenance
+             </button>
+             <button onClick={() => setLogModal(true)} className="bg-amber-400 text-black px-3 py-2 rounded-lg text-xs font-black flex items-center gap-1 shadow-lg shadow-amber-900/20">
+                 <PenTool size={14}/> LOG SHIFT
+             </button>
+          </div>
+      </div>
+
+      {/* Maintenance Modal */}
+      {maintModal && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+             <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-sm">
+                 <h3 className="text-lg font-bold text-white mb-4">Log Breakdown</h3>
+                 <select className="w-full p-3 bg-slate-950 border border-slate-700 rounded-xl text-white mb-3" id="maintMachine">
+                     {MACHINES.map(m => <option key={m}>{m}</option>)}
+                 </select>
+                 <textarea className="w-full p-3 bg-slate-950 border border-slate-700 rounded-xl text-white mb-4" placeholder="Reason (e.g. Needle Bar broken)" id="maintReason"></textarea>
+                 <Button onClick={() => handleMaintenanceLog(document.getElementById('maintMachine').value, document.getElementById('maintReason').value)} variant="danger" className="w-full">Log Downtime</Button>
+                 <button onClick={() => setMaintModal(false)} className="w-full text-center text-slate-500 text-xs mt-3">Cancel</button>
+             </div>
+          </div>
+      )}
+
+      {logModal && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+              <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-sm overflow-y-auto max-h-[90vh]">
+                  <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-black text-blue-900 flex items-center gap-2 text-slate-100"><Save className="text-amber-400"/> Log Stitches</h3>
+                      <button onClick={() => setLogModal(false)}><X size={20} className="text-slate-400"/></button>
+                  </div>
+                  
+                  <div className="space-y-3">
+                      <div>
+                          <label className="text-xs font-bold text-teal-500 uppercase">Machine</label>
+                          <select className="w-full p-2 border rounded-lg text-sm bg-slate-950 text-white border-slate-800" value={logForm.machine} onChange={e => setLogForm({...logForm, machine: e.target.value})}>{MACHINES.map(m => <option key={m} value={m}>{m}</option>)}</select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                          <div>
+                              <label className="text-xs font-bold text-teal-500 uppercase">Shift</label>
+                              <select className="w-full p-2 border rounded-lg text-sm bg-slate-950 text-white border-slate-800" value={logForm.shift} onChange={e => setLogForm({...logForm, shift: e.target.value})}>{SHIFTS.map(s => <option key={s} value={s}>{s}</option>)}</select>
+                          </div>
+                          <div>
+                              <label className="text-xs font-bold text-teal-500 uppercase">Operator</label>
+                              <select className="w-full p-2 border rounded-lg text-sm bg-slate-950 text-white border-slate-800" value={logForm.operator} onChange={e => setLogForm({...logForm, operator: e.target.value})}>{OPERATORS.map(o => <option key={o} value={o}>{o}</option>)}</select>
+                          </div>
+                      </div>
+                      <div>
+                          <label className="text-xs font-bold text-teal-500 uppercase">Design (Lot)</label>
+                          <select className="w-full p-2 border rounded-lg text-sm bg-slate-950 text-white border-slate-800" value={logForm.design} onChange={e => setLogForm({...logForm, design: e.target.value})}>{Object.keys(DESIGN_DB).map(d => <option key={d} value={d}>{d}</option>)}</select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 mt-2">
+                          <div className="bg-teal-900/20 p-3 rounded-xl border border-teal-900/50">
+                              <label className="text-[10px] font-bold text-teal-400 uppercase">Machine Reading</label>
+                              <input type="number" className="w-full p-2 mt-1 text-lg font-black text-center bg-slate-950 border-2 border-teal-900/50 text-white rounded-lg focus:outline-none focus:border-teal-500" placeholder="000" value={logForm.manualStitches} onChange={e => setLogForm({...logForm, manualStitches: e.target.value})}/>
+                          </div>
+                          <div className="bg-emerald-900/20 p-3 rounded-xl border border-emerald-900/50">
+                              <label className="text-[10px] font-bold text-emerald-400 uppercase">Pieces Completed</label>
+                              <input type="number" className="w-full p-2 mt-1 text-lg font-black text-center bg-slate-950 border-2 border-emerald-900/50 text-white rounded-lg focus:outline-none focus:border-emerald-500" placeholder="0" value={logForm.pcs} onChange={e => setLogForm({...logForm, pcs: e.target.value})}/>
+                          </div>
+                      </div>
+                      <Button onClick={handleSaveLog} className="w-full mt-2">Save Record</Button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {viewJobs.map(job => (
+        <div key={job.id} className={`p-4 rounded-xl border-2 ${job.status === 'RUNNING' ? 'bg-amber-950/20 border-amber-500/50' : 'bg-slate-900 border-slate-800'}`}>
+          <div className="flex justify-between items-start mb-2">
+             <div>
+              <h3 className="font-bold text-lg text-slate-100">{job.design}</h3>
+              <p className="text-xs font-bold text-teal-400">{job.qtyIndex}</p>
+             </div>
+             <StatusBadge status={job.status} />
+          </div>
+
+          {job.status === 'CHECKED' ? (
+            <div className="mt-3 space-y-3">
+              <div>
+                <label className="text-xs font-bold text-teal-500 uppercase">Select Machine</label>
+                <select className="w-full p-2 bg-slate-950 border border-slate-800 text-white rounded-lg text-sm font-bold focus:border-amber-500 outline-none" value={job.machine} onChange={(e) => updateJobField(job.id, 'machine', e.target.value)}>{MACHINES.map(m => <option key={m} value={m}>{m}</option>)}</select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-teal-500 uppercase">Operator</label>
+                  <select className="w-full p-2 bg-slate-950 border border-slate-800 text-white rounded-lg text-sm focus:border-amber-500 outline-none" value={job.operator} onChange={(e) => updateJobField(job.id, 'operator', e.target.value)}>{OPERATORS.map(op => <option key={op} value={op}>{op}</option>)}</select>
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-teal-500 uppercase">Shift</label>
+                  <select className="w-full p-2 bg-slate-950 border border-slate-800 text-white rounded-lg text-sm focus:border-amber-500 outline-none" value={job.shift} onChange={(e) => updateJobField(job.id, 'shift', e.target.value)}>{SHIFTS.map(s => <option key={s} value={s}>{s}</option>)}</select>
+                </div>
+              </div>
+              <Button onClick={() => toggleRun(job.id, 'CHECKED', job.machine, job.operator, job.shift)} className="w-full py-2 text-sm mt-2"><PlayCircle size={16} /> Start Production</Button>
+            </div>
+          ) : job.status === 'RUNNING' ? (
+            <div className="mt-2">
+               <div className="flex items-center gap-2 text-amber-500 text-sm font-bold mb-2 animate-pulse">
+                 <AlertTriangle size={16} /> Machine Running...
+               </div>
+               <Button onClick={() => toggleRun(job.id, 'RUNNING')} variant="success" className="w-full py-2 text-sm"><CheckCircle size={16} /> Finish Piece</Button>
+            </div>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const DriverView = ({ customers, jobs, setJobs }) => {
+  const [driverTab, setDriverTab] = useState('pickup');
+  const [pickupCust, setPickupCust] = useState(customers.length > 0 ? customers[0].businessName : "");
+  const [pickupCount, setPickupCount] = useState(0);
+  const [selectedDelivery, setSelectedDelivery] = useState(null);
+  const [loadingAi, setLoadingAi] = useState(false);
+  const readyJobs = jobs.filter(j => j.status === 'READY');
+
+  const handlePickup = () => {
+    alert(`PICKUP LOGGED!\nDriver collected ${pickupCount} pcs from ${pickupCust}.\nStore Manager notified.`);
+    setPickupCount(0);
+  };
+
+  const handleDelivery = () => {
+    if(!selectedDelivery) return;
+    setJobs(jobs.map(j => j.id === selectedDelivery ? { ...j, status: 'DELIVERED' } : j));
+    alert("DELIVERY CONFIRMED!\nMarked as Delivered.");
+    setSelectedDelivery(null);
+  };
+  
+  const handleGenerateMessage = async (job) => {
+      setLoadingAi(true);
+      const prompt = `Write a short WhatsApp message to customer '${job.customer}' that order '${job.design}' is out for delivery. Include driver name 'Kumar'.`;
+      const result = await callGemini(prompt);
+      alert(`WhatsApp Draft:\n\n${result}`);
+      setLoadingAi(false);
+  };
+
+  return (
+    <div className="space-y-6 pb-24 max-w-2xl mx-auto">
+       <div className="flex bg-slate-900 p-1 rounded-xl border border-slate-800">
+          <button onClick={() => setDriverTab('pickup')} className={`flex-1 py-4 rounded-lg font-black text-sm transition-colors ${driverTab === 'pickup' ? 'bg-amber-400 text-black' : 'text-slate-500 hover:text-slate-300'}`}>PICKUP</button>
+          <button onClick={() => setDriverTab('delivery')} className={`flex-1 py-4 rounded-lg font-black text-sm transition-colors ${driverTab === 'delivery' ? 'bg-amber-400 text-black' : 'text-slate-500 hover:text-slate-300'}`}>DELIVERY</button>
+       </div>
+       
+       {driverTab === 'pickup' && (
+          <div className="space-y-4">
+              <div className="bg-slate-900 p-5 rounded-2xl border border-slate-800">
+                  <label className="text-xs font-bold text-teal-500 uppercase mb-2 block">Customer</label>
+                  <select className="w-full p-4 bg-slate-950 border border-slate-700 rounded-xl text-white font-bold text-lg outline-none focus:border-amber-500" value={pickupCust} onChange={e => setPickupCust(e.target.value)}>
+                      {customers.map(c => <option key={c.id} value={c.businessName}>{c.businessName}</option>)}
+                  </select>
+              </div>
+              <div className="bg-slate-900 p-8 rounded-2xl border border-slate-800 text-center">
+                  <label className="text-xs font-bold text-teal-500 uppercase mb-4 block">Total Pieces Collected</label>
+                  <div className="flex items-center justify-center gap-8 mb-4">
+                      <button onClick={() => setPickupCount(Math.max(0, pickupCount - 1))} className="w-20 h-20 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold text-3xl active:scale-95 hover:bg-slate-700 transition-all">-</button>
+                      <span className="text-8xl font-black text-white">{pickupCount}</span>
+                      <button onClick={() => setPickupCount(pickupCount + 1)} className="w-20 h-20 rounded-full bg-slate-800 text-white flex items-center justify-center font-bold text-3xl active:scale-95 hover:bg-slate-700 transition-all">+</button>
+                  </div>
+              </div>
+              <Button onClick={handlePickup} className="w-full py-5 text-xl shadow-xl shadow-amber-500/20">CONFIRM PICKUP</Button>
+          </div>
+       )}
+       
+       {driverTab === 'delivery' && (
+           <div className="space-y-4">
+               {readyJobs.length === 0 && <p className="text-center text-slate-600 py-10">No items ready for delivery.</p>}
+               {readyJobs.map(job => (
+                   <div key={job.id} onClick={() => setSelectedDelivery(job.id)} className={`p-5 rounded-xl border-2 transition-all ${selectedDelivery === job.id ? 'bg-amber-900/20 border-amber-500' : 'bg-slate-900 border-slate-800'}`}>
+                      <div className="flex justify-between items-center mb-3">
+                          <div onClick={() => setSelectedDelivery(job.id)}>
+                              <h4 className="font-bold text-white text-xl">{job.design}</h4>
+                              <p className="text-slate-400 text-sm mt-1">{job.customer}</p>
+                              <span className="text-xs font-bold text-teal-400 bg-teal-900/30 px-2 py-1 rounded mt-1 inline-block">{job.qtyIndex}</span>
+                          </div>
+                          {selectedDelivery === job.id ? <CheckCircle className="text-amber-500" size={28}/> : <Box className="text-slate-600" size={24}/>}
+                      </div>
+                      {selectedDelivery === job.id && (
+                         <div className="flex gap-2">
+                            <Button onClick={() => handleGenerateMessage(job)} variant="secondary" disabled={loadingAi} className="flex-1 text-xs"><MessageSquare size={14}/> {loadingAi ? "Drafting..." : "WhatsApp"}</Button>
+                            <Button onClick={handleDelivery} variant="success" className="flex-1 text-xs">Mark Delivered</Button>
+                         </div>
+                      )}
+                   </div>
+               ))}
+           </div>
+       )}
+    </div>
+  );
+};
+
+const AdminView = ({ adminOverride, setAdminOverride }) => {
+    const [loadingAi, setLoadingAi] = useState(false);
+
+    const runSecurityAudit = async () => {
+       setLoadingAi(true);
+       const prompt = "Act as an IT Security Auditor for an ERP system. Check status: 48-hour lock is Active. Admin Override is OFF. Give one recommendation.";
+       const result = await callGemini(prompt);
+       alert(`SECURITY AUDIT RESULT:\n\n${result}`);
+       setLoadingAi(false);
+    };
+
+    return (
+        <div className="space-y-6 pb-24 max-w-3xl mx-auto">
+           <div className="bg-slate-900 p-8 rounded-3xl border border-slate-800">
+               <div className="flex items-center gap-4 mb-6">
+                   <div className="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center text-slate-300"><Settings size={32}/></div>
+                   <div>
+                       <h2 className="text-2xl font-black text-white">Admin Controls</h2>
+                       <p className="text-slate-400 text-sm">Accountant & Manager Permissions</p>
+                   </div>
+               </div>
+
+               <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800 space-y-4">
+                   <div className="flex justify-between items-center">
+                       <div>
+                           <h3 className="text-white font-bold flex items-center gap-2"><Lock className="text-orange-500" size={18}/> 48-Hour Data Lock</h3>
+                           <p className="text-slate-500 text-xs mt-1">Prevents editing of old records.</p>
+                       </div>
+                       <div className={`px-3 py-1 rounded text-xs font-black ${!adminOverride ? 'bg-emerald-500/20 text-emerald-500' : 'bg-orange-500/20 text-orange-500'}`}>
+                           {adminOverride ? 'UNLOCKED' : 'ACTIVE'}
+                       </div>
+                   </div>
+                   <div className="h-px bg-slate-800 my-2"></div>
+                   {adminOverride ? (
+                       <div className="bg-orange-900/20 p-4 rounded-xl border border-orange-500/30 text-center">
+                           <p className="text-orange-400 font-bold text-sm mb-3">⚠️ Emergency Override is ON</p>
+                           <p className="text-slate-400 text-xs mb-4">All historical data can currently be edited by staff.</p>
+                           <Button onClick={() => setAdminOverride(false)} variant="success" className="w-full">REVOKE EDIT ACCESS</Button>
+                       </div>
+                   ) : (
+                       <div className="bg-slate-900 p-4 rounded-xl text-center">
+                           <p className="text-slate-400 text-xs mb-4">Chairman unavailable? Grant temporary edit access.</p>
+                           <Button onClick={() => setAdminOverride(true)} variant="danger" className="w-full">GRANT EMERGENCY OVERRIDE</Button>
+                       </div>
+                   )}
+               </div>
+
+               <div className="mt-6">
+                   <Button onClick={runSecurityAudit} variant="magic" disabled={loadingAi} className="w-full">
+                      <Shield size={18}/> {loadingAi ? "Scanning..." : "Run AI Security Audit"}
+                   </Button>
+               </div>
+           </div>
+        </div>
+    );
+};
+
+const UserManagementView = ({ users, setUsers, setActiveTab }) => {
+  const [newUser, setNewUser] = useState({ name: "", role: "STAFF", pin: "" });
+  const handleAddUser = () => {
+    if (!newUser.name || !newUser.pin) return alert("Name and PIN required");
+    setUsers([...users, { ...newUser, id: Date.now() }]);
+    setNewUser({ name: "", role: "STAFF", pin: "" });
+    alert("User Added Successfully");
+  };
+  const handleDeleteUser = (id) => {
+      if (window.confirm("Are you sure you want to delete this user?")) {
+        setUsers(users.filter(u => u.id !== id));
+      }
+  };
+  return (
+    <div className="space-y-6 pb-24 max-w-4xl mx-auto animate-in fade-in">
+       <div className="flex items-center gap-3 text-slate-100 mb-4"><button onClick={() => setActiveTab('owner')}><ArrowLeft/></button><h2 className="text-2xl font-black">User Access Control</h2></div>
+       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 h-fit">
+             <div className="space-y-3">
+               <input className="w-full p-3 bg-slate-950 border border-slate-700 rounded-xl text-white outline-none" placeholder="Full Name" value={newUser.name} onChange={e => setNewUser({...newUser, name: e.target.value})} />
+               <select className="w-full p-3 bg-slate-950 border border-slate-700 rounded-xl text-white outline-none" value={newUser.role} onChange={e => setNewUser({...newUser, role: e.target.value})}>
+                   <option value="ADMIN">Accountant</option>
+                   <option value="SUPERVISOR">Supervisor</option>
+                   <option value="DRIVER">Driver</option>
+                   <option value="STAFF">Staff</option>
+               </select>
+               <input className="w-full p-3 bg-slate-950 border border-slate-700 rounded-xl text-white outline-none" placeholder="4-Digit PIN" maxLength={4} value={newUser.pin} onChange={e => setNewUser({...newUser, pin: e.target.value})} />
+               <Button onClick={handleAddUser} className="w-full mt-2">Grant Access</Button>
+             </div>
+          </div>
+          <div className="space-y-3">{users.map(user => (<div key={user.id} className="flex justify-between items-center p-4 bg-slate-900 rounded-xl border border-slate-800"><p className="font-bold text-white">{user.name} ({user.role})</p>{user.role !== 'CHAIRMAN' && <button onClick={() => handleDeleteUser(user.id)} className="text-red-500"><Trash2 size={18}/></button>}</div>))}</div>
+       </div>
+    </div>
+  );
+};
+
+const CustomerManagerView = ({ customers, setCustomers }) => {
+    const [isAddMode, setIsAddMode] = useState(false);
+    const [newCust, setNewCust] = useState({ businessName: "", vatNo: "", contactPerson: "", whatsapp: "", contactNumber: "", email: "", state: "Sharjah", city: "", area: "" });
+    const [custSearch, setCustSearch] = useState("");
+    const [selectedCust, setSelectedCust] = useState(null);
+    const [viewMode, setViewMode] = useState('list');
+    const [loadingAi, setLoadingAi] = useState(false);
+    const [filterState, setFilterState] = useState("ALL");
+
+    // Filter Logic
+    const filteredCustomers = customers.filter(c => {
+      const matchesSearch = c.businessName.toLowerCase().includes(custSearch.toLowerCase()) || c.whatsapp.includes(custSearch);
+      const matchesFilter = filterState === "ALL" || c.state === filterState;
+      return matchesSearch && matchesFilter;
+    });
+
+    const uniqueStates = ["ALL", ...new Set(customers.map(c => c.state))];
+
+    const handleAddCustomer = () => {
+        if(!newCust.businessName) return alert("Enter Business Name");
+        setCustomers([...customers, { ...newCust, id: `CUST-${Date.now()}`, balance: 0, lastPayment: "N/A" }]);
+        setIsAddMode(false);
+        setViewMode('list');
+    };
+
+    const handleAiDraft = async (type) => {
+       if(!selectedCust) return;
+       setLoadingAi(true);
+       const prompt = `Write a professional ${type} message to customer ${selectedCust.businessName}. Topic: Payment Reminder for outstanding balance of AED ${selectedCust.balance}. Tone: Polite but firm.`;
+       const result = await callGemini(prompt);
+       alert(`AI Drafted Message:\n\n${result}`);
+       setLoadingAi(false);
+    };
+
+    if (viewMode === 'detail' && selectedCust) {
+        return (
+            <div className="space-y-6 pb-24 max-w-3xl mx-auto">
+                <div className="flex items-center gap-4 mb-2">
+                    <button onClick={() => setViewMode('list')} className="p-2 bg-slate-800 rounded-full text-slate-400 hover:text-white"><ArrowLeft/></button>
+                    <h2 className="text-2xl font-black text-white">Customer Profile</h2>
+                </div>
+
+                {/* Profile Card */}
+                <div className="bg-slate-900 p-8 rounded-3xl border border-slate-800 shadow-xl">
+                    <div className="flex justify-between items-start mb-6">
+                        <div>
+                            <h1 className="text-3xl font-black text-white mb-1">{selectedCust.businessName}</h1>
+                            <p className="text-slate-400 font-medium">{selectedCust.contactPerson}</p>
+                            <span className="text-xs font-bold bg-slate-800 text-slate-500 px-2 py-1 rounded mt-2 inline-block">{selectedCust.id}</span>
+                        </div>
+                        <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 text-center min-w-[120px]">
+                            <p className="text-xs text-slate-500 font-bold uppercase mb-1">Total Due</p>
+                            <p className="text-2xl font-black text-orange-500">AED {selectedCust.balance}</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4 mb-8">
+                        <Button onClick={() => alert(`Calling ${selectedCust.contactNumber}`)} variant="success" className="text-xs"><Phone size={16}/> Call</Button>
+                        <Button onClick={() => handleAiDraft("WhatsApp")} variant="secondary" disabled={loadingAi} className="text-xs"><MessageSquare size={16}/> {loadingAi ? "Drafting..." : "Chat"}</Button>
+                        <Button onClick={() => handleAiDraft("Email")} variant="outline" disabled={loadingAi} className="text-xs"><Mail size={16}/> Email</Button>
+                    </div>
+
+                    <div className="space-y-4">
+                        <div className="p-4 bg-slate-950 rounded-xl flex items-center gap-3 border border-slate-800">
+                            <MapPin className="text-teal-500" size={20}/>
+                            <div>
+                                <p className="text-xs text-slate-500 font-bold uppercase">Location</p>
+                                <p className="text-slate-300 font-bold">{selectedCust.area}, {selectedCust.city}, {selectedCust.state}</p>
+                            </div>
+                        </div>
+                        <div className="p-4 bg-slate-950 rounded-xl flex items-center gap-3 border border-slate-800">
+                            <FileText className="text-amber-500" size={20}/>
+                            <div>
+                                <p className="text-xs text-slate-500 font-bold uppercase">VAT / TRN Number</p>
+                                <p className="text-slate-300 font-bold">{selectedCust.vatNo || "Not Registered"}</p>
+                            </div>
+                        </div>
+                         <div className="p-4 bg-slate-950 rounded-xl flex items-center gap-3 border border-slate-800">
+                            <Calendar className="text-teal-500" size={20}/>
+                            <div>
+                                <p className="text-xs text-slate-500 font-bold uppercase">Last Payment</p>
+                                <p className="text-slate-300 font-bold">{selectedCust.lastPayment}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-4 mt-8">
+                        <Button variant="dark" className="flex-1" onClick={() => alert("Edit Mode Enabled")}> <Edit size={16}/> Edit Details</Button>
+                        <Button variant="danger" className="flex-1" onClick={() => alert("Customer Blocked!")}> <Ban size={16}/> Block Account</Button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    if (viewMode === 'add') {
+      return (
+        <div className="space-y-6 pb-24 max-w-3xl mx-auto">
+           <button onClick={() => setViewMode('list')} className="text-slate-500 font-bold mb-4 flex items-center gap-2 hover:text-white transition-colors"><ArrowLeft size={18}/> Back</button>
+           <div className="bg-slate-900 p-8 rounded-3xl border border-slate-800 space-y-6 shadow-xl">
+              <input className="w-full p-4 bg-slate-950 border border-slate-700 text-white rounded-xl outline-none focus:border-amber-400" placeholder="Full Company Name" value={newCust.businessName} onChange={e => setNewCust({...newCust, businessName: e.target.value})} />
+              <Button onClick={handleAddCustomer} className="w-full py-4 text-lg">Complete Registration</Button>
+           </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-6 pb-24">
+        <div className="flex justify-between items-center"><h2 className="text-3xl font-black text-white flex items-center gap-3"><Users className="text-teal-500" size={32} /> Customer CRM</h2><Button onClick={() => setViewMode('add')} variant="primary" className="px-6">+ Register New</Button></div>
+        
+        {/* Search & Filter Bar */}
+        <div className="bg-slate-900 p-4 rounded-2xl border border-slate-800 flex flex-col md:flex-row gap-4">
+            <div className="relative flex-1">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={20}/>
+                <input 
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl py-3 pl-12 text-white font-bold outline-none focus:border-teal-500"
+                    placeholder="Search by Name, Number..."
+                    value={custSearch}
+                    onChange={e => setCustSearch(e.target.value)}
+                />
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">
+                {uniqueStates.map(state => (
+                    <button 
+                        key={state} 
+                        onClick={() => setFilterState(state)}
+                        className={`px-4 py-3 rounded-xl font-bold text-sm whitespace-nowrap transition-colors ${filterState === state ? 'bg-teal-600 text-white' : 'bg-slate-950 text-slate-400 border border-slate-700'}`}
+                    >
+                        {state}
+                    </button>
+                ))}
+            </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">{filteredCustomers.map(cust => (<div key={cust.id} onClick={() => {setSelectedCust(cust); setViewMode('detail');}} className="bg-slate-900 p-5 rounded-2xl border border-slate-800 hover:border-teal-500/50 transition-all cursor-pointer group"><h3 className="text-lg font-bold text-white mb-1 truncate">{cust.businessName}</h3><p className="text-sm text-slate-500 mb-4">{cust.contactPerson}</p></div>))}</div>
+      </div>
+    );
+};
+
+const OwnerView = ({ productionLogs, setActiveTab }) => {
+    const [vaultUnlocked, setVaultUnlocked] = useState(false);
+    const [pin, setPin] = useState("");
+    const [aiSummary, setAiSummary] = useState("");
+    const [loadingAi, setLoadingAi] = useState(false);
+
+    const handleVaultLogin = () => {
+        if (pin === "1990") { 
+            setVaultUnlocked(true);
+        } else {
+            alert("Access Denied: Incorrect PIN");
+        }
+    };
+
+    const ChairmanVault = () => {
+        let totalPcs = 0; let totalValue = 0; 
+        productionLogs.forEach((log) => {
+            const val = log.pcs * 45; 
+            totalPcs += log.pcs; totalValue += val;
+        });
+
+        const generateBriefing = async () => {
+            setLoadingAi(true);
+            const prompt = `Act as a business consultant for Royal Stars Embroidery. Analyze today's data: Revenue AED ${totalValue}, Output ${totalPcs} Pcs. Give a 3-sentence executive summary and one strategic recommendation for tomorrow.`;
+            const result = await callGemini(prompt);
+            setAiSummary(result);
+            setLoadingAi(false);
+        };
+
+        return (
+            <div className="space-y-6 animate-in fade-in duration-500">
+                <div className="bg-gradient-to-r from-orange-900 to-slate-900 p-6 rounded-3xl border border-orange-800/50 flex justify-between items-center"><div><h2 className="text-2xl font-black text-white flex items-center gap-2"><Shield className="text-orange-500"/> CHAIRMAN'S VAULT</h2></div><button onClick={() => setVaultUnlocked(false)} className="bg-black/50 p-2 rounded-full text-white hover:bg-orange-600"><LogOut size={18}/></button></div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                     <div className="bg-gradient-to-br from-teal-900/30 to-slate-900 p-6 rounded-3xl border border-teal-500/30 col-span-1 md:col-span-2">
+                         <div className="flex justify-between items-start mb-4">
+                            <h3 className="text-lg font-bold text-white flex items-center gap-2"><Sparkles className="text-teal-400"/> AI Executive Briefing</h3>
+                            <Button onClick={generateBriefing} variant="magic" className="py-2 px-4 text-xs" disabled={loadingAi}>{loadingAi ? "Analyzing..." : "Generate Briefing"}</Button>
+                         </div>
+                         {aiSummary ? <div className="p-4 bg-slate-950/50 rounded-xl border border-teal-500/20 text-slate-300 text-sm leading-relaxed">{aiSummary}</div> : <div className="p-8 text-center text-slate-600 text-sm italic border border-dashed border-slate-800 rounded-xl">Click "Generate Briefing" for AI analysis of today's data.</div>}
+                    </div>
+                    <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800"><h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2"><Wallet className="text-emerald-500"/> Financial Pulse</h3><p className="text-slate-400">Total Revenue: AED {totalValue}</p></div>
+                </div>
+            </div>
+        );
+    };
+
+    if (!vaultUnlocked) {
+        return (
+            <div className="flex flex-col items-center justify-center h-[60vh] space-y-6">
+                <div className="w-20 h-20 bg-slate-900 rounded-full flex items-center justify-center border border-slate-800 shadow-2xl"><Lock size={40} className="text-amber-400"/></div>
+                <h2 className="text-2xl font-black text-white">Chairman's Vault</h2>
+                <div className="w-full max-w-xs"><input type="password" className="w-full p-4 bg-slate-900 border border-slate-800 rounded-2xl text-center text-2xl font-black text-white tracking-[0.5em] focus:border-amber-400 outline-none transition-colors" placeholder="• • • •" maxLength={4} value={pin} onChange={e => setPin(e.target.value)}/></div>
+                <Button onClick={handleVaultLogin} variant="primary" className="w-full max-w-xs py-4 shadow-amber-500/20">UNLOCK REPORTS</Button>
+            </div>
+        );
+    }
+    return <ChairmanVault />;
+};
+
+// --- MAIN LAYOUT COMPONENT ---
+const AppLayout = ({ children, activeTab, setActiveTab, currentUser, setCurrentUser }) => (
+    <div className="min-h-screen bg-slate-950 font-sans text-slate-100 flex">
+      <aside className="hidden md:flex w-72 bg-slate-900 border-r border-slate-800 flex-col p-6 fixed h-full z-20">
+        <div className="flex items-center gap-3 mb-12 px-2">
+            <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-yellow-600 rounded-xl flex items-center justify-center shadow-lg shadow-amber-500/20"><Crown size={20} className="text-black" /></div>
+            <div><h1 className="text-xl font-black text-white tracking-tighter leading-none">ROYAL STARS</h1><span className="text-teal-500 font-bold text-[10px] tracking-[0.2em]">ENTERPRISE</span></div>
+        </div>
+        <nav className="flex-1 space-y-2">
+          {currentUser.role === 'CHAIRMAN' && <SidebarBtn id="owner" icon={Shield} label="Chairman Vault" active={activeTab} set={setActiveTab}/>}
+          {(currentUser.role === 'CHAIRMAN' || currentUser.role === 'ADMIN') && <><SidebarBtn id="admin" icon={Settings} label="Admin Panel" active={activeTab} set={setActiveTab}/><SidebarBtn id="store" icon={Package} label="Store Receive" active={activeTab} set={setActiveTab}/><SidebarBtn id="payroll" icon={Banknote} label="Payroll" active={activeTab} set={setActiveTab}/><SidebarBtn id="invoice" icon={FileText} label="Invoicing" active={activeTab} set={setActiveTab}/></>}
+          <SidebarBtn id="inventory" icon={Box} label="Inventory" active={activeTab} set={setActiveTab}/>
+          <SidebarBtn id="production" icon={AlertTriangle} label="Production" active={activeTab} set={setActiveTab}/>
+          <SidebarBtn id="supervisor" icon={ClipboardCheck} label="Thread Match" active={activeTab} set={setActiveTab}/>
+          <SidebarBtn id="dispatch" icon={Truck} label="Delivery" active={activeTab} set={setActiveTab}/>
+          <SidebarBtn id="driver" icon={Car} label="Driver App" active={activeTab} set={setActiveTab}/>
+          <SidebarBtn id="customers" icon={Users} label="Customers" active={activeTab} set={setActiveTab}/>
+          <SidebarBtn id="hr" icon={Briefcase} label="Human Resources" active={activeTab} set={setActiveTab}/>
+        </nav>
+        <div className="mt-auto pt-6 border-t border-slate-800"><button onClick={() => setCurrentUser(null)} className="w-full flex items-center gap-3 px-4 py-3 text-orange-500 hover:bg-orange-900/20 rounded-xl transition-colors font-bold text-sm"><LogOut size={18}/> Sign Out</button></div>
+      </aside>
+      <div className="flex-1 md:ml-72 flex flex-col min-h-screen relative">
+        <header className="md:hidden p-4 flex justify-between items-center bg-slate-950/80 backdrop-blur-md sticky top-0 z-40 border-b border-slate-800"><div className="flex items-center gap-2"><Crown size={24} className="text-amber-400"/><span className="font-black text-lg tracking-tighter">ROYAL STARS</span></div><button onClick={() => setCurrentUser(null)}><LogOut size={20} className="text-slate-400"/></button></header>
+        <main className="flex-1 p-4 md:p-10 max-w-[1600px] w-full mx-auto">{children}</main>
+      </div>
+      <nav className="md:hidden fixed bottom-0 inset-x-0 h-20 bg-slate-950 border-t border-slate-800 z-50 flex justify-around items-center px-2 pb-2">
+         {['owner', 'store', 'production'].map(id => (<button key={id} onClick={() => setActiveTab(id)} className={`p-3 rounded-xl transition-colors ${activeTab === id ? 'text-amber-400 bg-slate-900' : 'text-slate-500'}`}>{id === 'store' ? <Package/> : id === 'production' ? <AlertTriangle/> : <Crown/>}</button>))}
+      </nav>
+    </div>
+);
+
+// --- WRAPPER ---
+const AppContent = ({ activeTab, setActiveTab, currentUser, ...props }) => {
+  switch (activeTab) {
+    case 'owner': return <OwnerView {...props} setActiveTab={setActiveTab} />;
+    case 'admin': return <AdminView {...props} />;
+    case 'users': return <UserManagementView {...props} setActiveTab={setActiveTab} />;
+    case 'store': return <StoreView {...props} />;
+    case 'supervisor': return <SupervisorView {...props} />;
+    case 'production': return <ProductionView {...props} />;
+    case 'driver': return <DriverView {...props} />;
+    case 'dispatch': return <DriverView {...props} />; 
+    case 'customers': return <CustomerManagerView {...props} />;
+    case 'inventory': return <InventoryView {...props} />;
+    case 'payroll': return <PayrollView {...props} />;
+    case 'invoice': return <InvoiceView {...props} />;
+    case 'hr': return <HRView {...props} />;
+    case 'dashboard': return <OwnerView {...props} setActiveTab={setActiveTab} />;
+    default: return <div className="text-center py-20 text-slate-500">Module: {activeTab}</div>;
+  }
+};
+
+// --- MAIN RENDERER ---
+const MasterERPWrapper = () => {
+  const [currentUser, setCurrentUser] = useState(null);
+  const [activeTab, setActiveTab] = useState('owner');
+  
+  // Central State Lifted Up
+  const [users, setUsers] = useState(INITIAL_USERS);
+  const [customers, setCustomers] = useState(INITIAL_CUSTOMERS);
+  const [inventory, setInventory] = useState(INITIAL_INVENTORY);
+  const [staff, setStaff] = useState(INITIAL_STAFF);
+  const [productionLogs, setProductionLogs] = useState([]);
+  const [adminOverride, setAdminOverride] = useState(false);
+  const [jobs, setJobs] = useState([
+    { id: "RS-523-01", customer: "Al Saleh Tailoring LLC", billNo: "1001", design: "RS-523", qtyIndex: "1/2", status: "RECEIVED", timestamp: "2023-11-25T10:00:00" }, 
+    { id: "RS-523-02", customer: "Al Saleh Tailoring LLC", billNo: "1001", design: "RS-523", qtyIndex: "2/2", status: "RECEIVED", timestamp: "2023-11-25T10:00:00" }, 
+    { id: "RS-990-01", customer: "Al Zeenah Embroidery", billNo: "990", design: "RS-123", qtyIndex: "1/1", status: "CHECKED", timestamp: new Date().toISOString() },
+    { id: "RS-900-55", customer: "Oman Fashion Trading", billNo: "OM-55", design: "RS-900", qtyIndex: "1/50", status: "RUNNING", machine: "Tajima 04", timestamp: new Date().toISOString() },
+  ]);
+
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
+        <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl text-center">
+           <div className="w-20 h-20 bg-slate-950 rounded-full flex items-center justify-center mx-auto mb-6 border border-amber-500/30 shadow-lg shadow-amber-500/10">
+             <Crown className="text-amber-500" size={40}/>
+           </div>
+           <h1 className="text-3xl font-black text-white mb-2 tracking-tighter">ROYAL STARS <span className="text-amber-500">ERP</span></h1>
+           <p className="text-slate-500 text-sm mb-8">Secure Enterprise Login</p>
+           
+           <div className="grid grid-cols-2 gap-3">
+             {users.map(user => (
+               <button 
+                 key={user.id}
+                 onClick={() => {
+                   const pin = prompt(`Enter PIN for ${user.name}:`); 
+                   if (pin === user.pin) {
+                     setCurrentUser(user);
+                     if (user.role === 'CHAIRMAN') setActiveTab('owner');
+                     else if (user.role === 'ADMIN') setActiveTab('store');
+                     else if (user.role === 'SUPERVISOR') setActiveTab('supervisor');
+                     else if (user.role === 'DRIVER') setActiveTab('driver');
+                     else setActiveTab('production');
+                   } else {
+                     alert("Incorrect PIN");
+                   }
+                 }}
+                 className="p-4 bg-slate-950 border border-slate-800 rounded-xl hover:border-amber-500/50 transition-all flex flex-col items-center gap-2 group"
+               >
+                 <div className="p-2 rounded-full bg-slate-900 text-slate-400 group-hover:text-white group-hover:bg-amber-500 transition-colors">
+                    {user.role === 'CHAIRMAN' ? <Crown size={20}/> : user.role === 'DRIVER' ? <Car size={20}/> : <User size={20}/>}
+                 </div>
+                 <span className="text-xs font-bold text-slate-300 group-hover:text-amber-500 uppercase">{user.name}</span>
+               </button>
+             ))}
+           </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <AppLayout activeTab={activeTab} setActiveTab={setActiveTab} currentUser={currentUser} setCurrentUser={setCurrentUser}>
+      <AppContent 
+        activeTab={activeTab} 
+        setActiveTab={setActiveTab} 
+        currentUser={currentUser}
+        users={users} setUsers={setUsers}
+        customers={customers} setCustomers={setCustomers}
+        inventory={inventory} setInventory={setInventory}
+        staff={staff} setStaff={setStaff}
+        productionLogs={productionLogs} setProductionLogs={setProductionLogs}
+        adminOverride={adminOverride} setAdminOverride={setAdminOverride}
+        jobs={jobs} setJobs={setJobs}
+      />
+    </AppLayout>
+  );
+};
+
+export default MasterERPWrapper;
